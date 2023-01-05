@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from time import sleep
 import os
 import requests
+from bs4 import BeautifulSoup
 
 
 def setupChromeDriver():
@@ -145,17 +146,35 @@ def scrapeModels(name, link):
     try:
         driver = setupChromeDriver()
         driver.get(link.strip('\n'))
-        awaitElement(driver, None, None, 300,'[data-layout-shift-boundary-id="CloseupPageBody"]')
+        awaitElement(driver, None, None, 300, '[data-layout-shift-boundary-id="CloseupPageBody"]')
         modelContainer = driver.find_element(By.CSS_SELECTOR, '*[data-layout-shift-boundary-id="CloseupPageBody"]')
-        model = modelContainer.find_element(By.CSS_SELECTOR,'[data-test-id="pin-closeup-image"]')
+        model = modelContainer.find_element(By.CSS_SELECTOR, '[data-test-id="pin-closeup-image"]')
         modelImageLink = model.find_element(By.TAG_NAME, 'img').get_attribute('src')
         modelImageType = modelImageLink[modelImageLink.rfind('.'):]
-        with open(rf'{outputPath}\{name}\{str(uuid.uuid4())}{modelImageType}','wb') as handle:
+        with open(rf'{outputPath}\{name}\{str(uuid.uuid4())}{modelImageType}', 'wb') as handle:
             img_data = requests.get(modelImageLink).content
             handle.write(img_data)
         driver.close()
         return
     except:
+        exit()
+
+
+def scrapeModelsNoDriver(name, link):
+    try:
+        session = requests.Session()
+        r = session.get(link)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        modelImageLink = soup.find("img", {"elementtiming": "closeupImage"})
+        modelImage = modelImageLink['src']
+        modelImageType = modelImage[modelImage.rfind('.'):]
+        with open(rf'{outputPath}\{name}\{str(uuid.uuid4())}{modelImageType}', 'wb') as handle:
+            img_data = requests.get(modelImage).content
+            handle.write(img_data)
+            print(link,'added to',name)
+        return
+    except Exception as e:
+        print(e)
         exit()
 
 
@@ -195,9 +214,15 @@ if __name__ == '__main__':
         os.makedirs(outputPath)
 
     [allModels, allPaths] = getModels()
+
+    # scrapeModelsNoDriver(allPaths[0],allModels[0])
+
     # model = scrapeModels(allPaths[0], allModels[0])
+
     with ThreadPoolExecutor(max_workers=None) as executor:
-        executor.map(scrapeModels,allPaths,allModels)
+        executor.map(scrapeModelsNoDriver, allPaths, allModels)
+
+
     # print(model)
     # allModels = scrapeFolders(setupChromeDriver(), "موديرن", allGroups['موديرن'])
     # with ThreadPoolExecutor(max_workers=None) as executor:
